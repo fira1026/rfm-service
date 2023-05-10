@@ -1,0 +1,66 @@
+#!/bin/sh
+#shellcheck shell=sh
+set -o errexit -o noglob -o nounset -o xtrace
+
+check_wsl() {
+    if [ -z "${WSL_DISTRO_NAME-}" ]; then
+        printf 'Please run in WSL instead!\n'
+        exit 1
+    fi
+}
+
+setup_env() {
+    if ! command -v docker >/dev/null; then
+        printf 'Ignore Docker Desktop message!\n'
+        curl https://get.docker.com | sudo sh
+        sudo usermod -aG docker "${USER}"
+        newgrp docker
+    fi
+    sudo service docker start || :
+
+    if ! command -v code >/dev/null; then
+        # install VSCode in Windows
+        powershell.exe 'winget install --accept-package-agreements Microsoft.VisualStudioCode'
+    fi
+    local ext
+    # install VSCode extensions in Windows
+    while read -r ext; do
+        powershell.exe "code --install-extension ${ext}"
+    done <<-EOF
+ms-vscode-remote.vscode-remote-extensionpack
+EOF
+    # install VSCode extensions in WSL (shared with Container)
+    while read -r ext; do
+        code --install-extension "${ext}"
+    done <<-EOF
+ms-python.python
+EOF
+}
+
+docker_up() {
+    docker compose up --build
+}
+
+docker_down() {
+    docker compose down
+}
+
+vscode_attach() {
+    code --folder-uri vscode-remote://attached-container+"$(printf 'dev' | xxd -p)"/home/vscode/miniproj/
+}
+
+cf_tunnel() {
+    docker compose exec dev cloudflared tunnel --url http://localhost:8000
+}
+
+main() {
+    case "${1-}" in
+    setup) setup_env ;;
+    up) docker_up ;;
+    down) docker_down ;;
+    code) vscode_attach ;;
+    demo) cf_tunnel ;;
+    *) printf './run setup|up|down|code|demo\n' ;;
+    esac
+}
+main "$@"

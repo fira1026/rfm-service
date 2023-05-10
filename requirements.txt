@@ -1,0 +1,7 @@
+django
+fastapi
+psycopg[binary]
+uvicorn
+djangorestframework
+pandas
+requests
